@@ -109,6 +109,9 @@ void printExpression(Expr* expr, uintmax_t num_indent) {
     case kExprLiteralInt:
       inprint(expr->ival, num_indent);
       break;
+    case kExprLiteralIntString:
+      inprint(expr->name, num_indent);
+      break;
     case kExprLiteralString:
       inprint(expr->name, num_indent);
       break;
@@ -236,6 +239,10 @@ void printSelectStatementInfo(const SelectStatement* stmt, uintmax_t num_indent)
       inprint("Having:", num_indent + 1);
       printExpression(stmt->groupBy->having, num_indent + 2);
     }
+  }
+  if (!stmt->groupBy && stmt->having) {
+    inprint("Having:", num_indent + 1);
+    printExpression(stmt->having, num_indent + 2);
   }
   if (stmt->lockings) {
     inprint("Lock Info:", num_indent + 1);
@@ -441,6 +448,10 @@ std::ostream& operator<<(std::ostream& os, const OperatorType& op) {
       {kOpPlus, "+"},        {kOpMinus, "-"},
       {kOpAsterisk, "*"},    {kOpSlash, "/"},
       {kOpPercentage, "%"},  {kOpCaret, "^"},
+      {kOpMod, "MOD"},       {kOpDiv, "DIV"},
+      {kOpBitAnd, "&"},      {kOpBitOr, "|"},
+      {kOpBitXor, "^"},      {kOpBitShiftLeft, "<<"},
+      {kOpBitShiftRight, ">>"},
       {kOpEquals, "="},      {kOpNotEquals, "!="},
       {kOpLess, "<"},        {kOpLessEq, "<="},
       {kOpGreater, ">"},     {kOpGreaterEq, ">="},

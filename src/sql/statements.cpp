@@ -292,6 +292,7 @@ SelectStatement::SelectStatement()
       selectList(nullptr),
       whereClause(nullptr),
       groupBy(nullptr),
+      having(nullptr),
       setOperations(nullptr),
       order(nullptr),
       withDescriptions(nullptr),
@@ -302,6 +303,7 @@ SelectStatement::~SelectStatement() {
   delete fromTable;
   delete whereClause;
   delete groupBy;
+  delete having;
   delete limit;
 
   // Delete each element in the select list.
@@ -408,7 +410,7 @@ const char* TableRef::getName() const {
 
 // JoinDefinition
 JoinDefinition::JoinDefinition()
-    : left(nullptr), right(nullptr), condition(nullptr), namedColumns(nullptr), type(kJoinInner) {}
+    : left(nullptr), right(nullptr), condition(nullptr), namedColumns(nullptr), type(kJoinInner), natural(false) {}
 
 JoinDefinition::~JoinDefinition() {
   delete left;

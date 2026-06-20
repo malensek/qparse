@@ -63,6 +63,7 @@ struct JoinDefinition {
   std::vector<char*>* namedColumns;
 
   JoinType type;
+  bool natural;
 };
 
 }  // namespace hsql

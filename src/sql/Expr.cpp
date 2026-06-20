@@ -151,6 +151,12 @@ Expr* Expr::makeLiteral(int64_t val) {
   return e;
 }
 
+Expr* Expr::makeLiteralIntString(char* val) {
+  Expr* e = new Expr(kExprLiteralIntString);
+  e->name = val;
+  return e;
+}
+
 Expr* Expr::makeLiteral(double value) {
   Expr* e = new Expr(kExprLiteralFloat);
   e->fval = value;
@@ -198,6 +204,14 @@ Expr* Expr::makeColumnRef(char* table, char* name) {
   Expr* e = new Expr(kExprColumnRef);
   e->name = name;
   e->table = table;
+  return e;
+}
+
+Expr* Expr::makeColumnRef(char* schema, char* table, char* name) {
+  Expr* e = new Expr(kExprColumnRef);
+  e->name = name;
+  e->table = table;
+  e->schema = schema;
   return e;
 }
 
@@ -298,8 +312,9 @@ Expr* Expr::makeCast(Expr* expr, ColumnType columnType) {
 bool Expr::isType(ExprType exprType) const { return exprType == type; }
 
 bool Expr::isLiteral() const {
-  return isType(kExprLiteralInt) || isType(kExprLiteralFloat) || isType(kExprLiteralString) || isType(kExprParameter) ||
-         isType(kExprLiteralNull) || isType(kExprLiteralDate) || isType(kExprLiteralInterval);
+  return isType(kExprLiteralInt) || isType(kExprLiteralIntString) || isType(kExprLiteralFloat) ||
+         isType(kExprLiteralString) || isType(kExprParameter) || isType(kExprLiteralNull) ||
+         isType(kExprLiteralDate) || isType(kExprLiteralInterval);
 }
 
 bool Expr::hasAlias() const { return alias != nullptr; }

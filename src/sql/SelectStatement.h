@@ -77,6 +77,7 @@ struct SelectStatement : SQLStatement {
   std::vector<Expr*>* selectList;
   Expr* whereClause;
   GroupByDescription* groupBy;
+  Expr* having;
 
   // Note that a SetOperation is always connected to a
   // different SelectStatement. This statement can itself

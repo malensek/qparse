@@ -102,6 +102,7 @@ DESC        TOKEN(DESC)
 DESCRIBE    TOKEN(DESCRIBE)
 DIRECT      TOKEN(DIRECT)
 DISTINCT    TOKEN(DISTINCT)
+DIV         TOKEN(DIV)
 DOUBLE      TOKEN(DOUBLE)
 DROP        TOKEN(DROP)
 ELSE        TOKEN(ELSE)
@@ -157,6 +158,7 @@ MERGE       TOKEN(MERGE)
 MINUS       TOKEN(MINUS)
 MINUTE      TOKEN(MINUTE)
 MINUTES     TOKEN(MINUTES)
+MOD         TOKEN(MOD)
 MONTH       TOKEN(MONTH)
 MONTHS      TOKEN(MONTHS)
 NATURAL     TOKEN(NATURAL)
@@ -232,16 +234,21 @@ CHARACTER[ \t\n]+VARYING TOKEN(CHARACTER_VARYING)
 
             /* Allow =/== see https://sqlite.org/lang_expr.html#collateop */
 "=="        TOKEN(EQUALS)
+"<=>"       TOKEN(NULLSAFEEQUALS)
 "!="        TOKEN(NOTEQUALS)
 "<>"        TOKEN(NOTEQUALS)
 "<="        TOKEN(LESSEQ)
 ">="        TOKEN(GREATEREQ)
-"||"        TOKEN(CONCAT)
+"&&"        TOKEN(LOGICALAND)
+"||"        TOKEN(LOGICALOR)
+"<<"        TOKEN(BITSHIFTLEFT)
+">>"        TOKEN(BITSHIFTRIGHT)
 
-[-+*/(){},.;<>=^%:?[\]|]    { return yytext[0]; }
+[-+*/(){},.;<>=^%:?[\]|&]    { return yytext[0]; }
 
-[0-9]+"."[0-9]* |
-"."[0-9]*  {
+[0-9]+"."[0-9]*([eE][-+]?[0-9]+)? |
+"."[0-9]+([eE][-+]?[0-9]+)? |
+[0-9]+[eE][-+]?[0-9]+  {
   yylval->fval = atof(yytext);
   return SQL_FLOATVAL;
 }
@@ -260,8 +267,8 @@ CHARACTER[ \t\n]+VARYING TOKEN(CHARACTER_VARYING)
   errno = 0;
   yylval->ival = strtoll(yytext, nullptr, 0);
   if (errno) {
-    return fprintf(stderr, "[SQL-Lexer-Error] Integer cannot be parsed - is it out of range?");
-    return 0;
+    yylval->sval = strdup(yytext);
+    return SQL_BIGINTVAL;
   }
   return SQL_INTVAL;
 }
@@ -272,7 +279,13 @@ CHARACTER[ \t\n]+VARYING TOKEN(CHARACTER_VARYING)
   return SQL_IDENTIFIER;
 }
 
-[A-Za-z][A-Za-z0-9_]* {
+`[^`\n]+` {
+  // Crop the leading and trailing quote char
+  yylval->sval = hsql::substr(yytext, 1, strlen(yytext)-1);
+  return SQL_IDENTIFIER;
+}
+
+[A-Za-z_][A-Za-z0-9_]* {
   yylval->sval = strdup(yytext);
   return SQL_IDENTIFIER;
 }

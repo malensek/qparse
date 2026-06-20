@@ -211,8 +211,10 @@
  ** Token Definition
  *********************************/
 %token <sval> IDENTIFIER STRING
+%token <sval> BIGINTVAL
 %token <fval> FLOATVAL
 %token <ival> INTVAL
+%token NULLSAFEEQUALS
 
 /* SQL Keywords */
 %token DEALLOCATE PARAMETERS INTERSECT TEMPORARY TIMESTAMP
@@ -225,17 +227,18 @@
 %token TABLES UNLOAD UPDATE VALUES AFTER ALTER CROSS
 %token DELTA FLOAT GROUP INDEX INNER LIMIT LOCAL MERGE MINUS ORDER OVER
 %token OUTER RIGHT TABLE UNION USING WHERE CALL CASE CHAR COPY DATE DATETIME
-%token DESC DROP ELSE FILE FROM FULL HASH HINT INTO JOIN
+%token DESC DIV DROP ELSE FILE FROM FULL HASH HINT INTO JOIN
 %token LEFT LIKE LOAD LONG NULL PARTITION PLAN SHOW TEXT THEN TIME
 %token VIEW WHEN WITH ADD ALL AND ASC END FOR INT
 %token NOT OFF SET TOP AS BY IF IN IS OF ON OR TO NO
-%token ARRAY CONCAT ILIKE SECOND MINUTE HOUR DAY MONTH YEAR
+%token ARRAY CONCAT ILIKE MOD SECOND MINUTE HOUR DAY MONTH YEAR
 %token SECONDS MINUTES HOURS DAYS MONTHS YEARS INTERVAL
 %token TRUE FALSE BOOLEAN
 %token TRANSACTION BEGIN COMMIT ROLLBACK
 %token NOWAIT SKIP LOCKED SHARE
 %token RANGE ROWS GROUPS UNBOUNDED FOLLOWING PRECEDING CURRENT_ROW
 %token UNIQUE PRIMARY FOREIGN KEY REFERENCES
+%token BITSHIFTLEFT BITSHIFTRIGHT LOGICALAND LOGICALOR
 
 /*********************************
  ** Non-Terminal types (http://www.gnu.org/software/bison/manual/html_node/Type-Decl.html)
@@ -265,7 +268,7 @@
 %type <bval>                   opt_not_exists opt_exists opt_distinct opt_all
 %type <ival_pair>              opt_decimal_specification
 %type <ival>                   opt_time_precision
-%type <join_type>              opt_join_type
+%type <join_type>              opt_join_type natural_join_type
 %type <table>                  opt_from_clause from_clause table_ref table_ref_atomic table_ref_name nonjoin_table_ref_atomic
 %type <table>                  join_clause table_ref_name_no_alias
 %type <expr>                   expr operand scalar_expr unary_expr binary_expr logic_expr exists_expr extract_expr cast_expr
@@ -314,18 +317,21 @@
  ** Token Precedence and Associativity
  ** Precedence: lowest to highest
  ******************************/
-%left     OR
-%left     AND
+%left     OR LOGICALOR
+%left     AND LOGICALAND
 %right    NOT
-%nonassoc '=' EQUALS NOTEQUALS LIKE ILIKE
+%nonassoc '=' EQUALS NULLSAFEEQUALS NOTEQUALS LIKE ILIKE
 %nonassoc '<' '>' LESS GREATER LESSEQ GREATEREQ
 
 %nonassoc NOTNULL
 %nonassoc ISNULL
 %nonassoc IS        /* sets precedence for IS NULL, etc */
-%left     '+' '-'
-%left     '*' '/' '%'
+%left     '|'
 %left     '^'
+%left     '&'
+%left     BITSHIFTLEFT BITSHIFTRIGHT
+%left     '+' '-'
+%left     '*' '/' '%' MOD DIV
 %left     CONCAT
 
 /* Unary Operators */
@@ -340,7 +346,7 @@
  *********************************/
 
 // Defines our general input.
-input : statement_list opt_semicolon {
+input : statement_list {
   for (SQLStatement* stmt : *$1) {
     // Transfers ownership of the statement.
     result->addStatement(stmt);
@@ -364,6 +370,10 @@ statement_list : statement {
   yylloc.string_length = 0;
   $$ = new std::vector<SQLStatement*>();
   $$->push_back($1);
+}
+| statement_list ';' {
+  yylloc.string_length = 0;
+  $$ = $1;
 }
 | statement_list ';' statement {
   $3->stringLength = yylloc.string_length;
@@ -979,7 +989,7 @@ set_type : UNION {
 opt_all : ALL { $$ = true; }
 | /* empty */ { $$ = false; };
 
-select_clause : SELECT opt_top opt_distinct select_list opt_from_clause opt_where opt_group {
+select_clause : SELECT opt_top opt_distinct select_list opt_from_clause opt_where opt_group opt_having {
   $$ = new SelectStatement();
   $$->limit = $2;
   $$->selectDistinct = $3;
@@ -987,6 +997,11 @@ select_clause : SELECT opt_top opt_distinct select_list opt_from_clause opt_wher
   $$->fromTable = $5;
   $$->whereClause = $6;
   $$->groupBy = $7;
+  if ($7) {
+    $$->groupBy->having = $8;
+  } else {
+    $$->having = $8;
+  }
 };
 
 opt_distinct : DISTINCT { $$ = true; }
@@ -1002,10 +1017,9 @@ from_clause : FROM table_ref { $$ = $2; };
 opt_where : WHERE expr { $$ = $2; }
 | /* empty */ { $$ = nullptr; };
 
-opt_group : GROUP BY expr_list opt_having {
+opt_group : GROUP BY expr_list {
   $$ = new GroupByDescription();
   $$->columns = $3;
-  $$->having = $4;
 }
 | /* empty */ { $$ = nullptr; };
 
@@ -1133,14 +1147,22 @@ binary_expr : comp_expr | operand '-' operand { $$ = Expr::makeOpBinary($1, kOpM
 | operand '/' operand { $$ = Expr::makeOpBinary($1, kOpSlash, $3); }
 | operand '*' operand { $$ = Expr::makeOpBinary($1, kOpAsterisk, $3); }
 | operand '%' operand { $$ = Expr::makeOpBinary($1, kOpPercentage, $3); }
-| operand '^' operand { $$ = Expr::makeOpBinary($1, kOpCaret, $3); }
+| operand MOD operand { $$ = Expr::makeOpBinary($1, kOpMod, $3); }
+| operand DIV operand { $$ = Expr::makeOpBinary($1, kOpDiv, $3); }
+| operand '^' operand { $$ = Expr::makeOpBinary($1, kOpBitXor, $3); }
+| operand '&' operand { $$ = Expr::makeOpBinary($1, kOpBitAnd, $3); }
+| operand '|' operand { $$ = Expr::makeOpBinary($1, kOpBitOr, $3); }
+| operand BITSHIFTLEFT operand { $$ = Expr::makeOpBinary($1, kOpBitShiftLeft, $3); }
+| operand BITSHIFTRIGHT operand { $$ = Expr::makeOpBinary($1, kOpBitShiftRight, $3); }
 | operand LIKE operand { $$ = Expr::makeOpBinary($1, kOpLike, $3); }
 | operand NOT LIKE operand { $$ = Expr::makeOpBinary($1, kOpNotLike, $4); }
 | operand ILIKE operand { $$ = Expr::makeOpBinary($1, kOpILike, $3); }
 | operand CONCAT operand { $$ = Expr::makeOpBinary($1, kOpConcat, $3); };
 
 logic_expr : expr AND expr { $$ = Expr::makeOpBinary($1, kOpAnd, $3); }
-| expr OR expr { $$ = Expr::makeOpBinary($1, kOpOr, $3); };
+| expr LOGICALAND expr { $$ = Expr::makeOpBinary($1, kOpAnd, $3); }
+| expr OR expr { $$ = Expr::makeOpBinary($1, kOpOr, $3); }
+| expr LOGICALOR expr { $$ = Expr::makeOpBinary($1, kOpOr, $3); };
 
 in_expr : operand IN '(' expr_list ')' { $$ = Expr::makeInOperator($1, $4); }
 | operand NOT IN '(' expr_list ')' { $$ = Expr::makeOpUnary(kOpNot, Expr::makeInOperator($1, $5)); }
@@ -1162,6 +1184,7 @@ exists_expr : EXISTS '(' select_no_paren ')' { $$ = Expr::makeExists($3); }
 
 comp_expr : operand '=' operand { $$ = Expr::makeOpBinary($1, kOpEquals, $3); }
 | operand EQUALS operand { $$ = Expr::makeOpBinary($1, kOpEquals, $3); }
+| operand NULLSAFEEQUALS operand { $$ = Expr::makeOpBinary($1, kOpNullSafeEquals, $3); }
 | operand NOTEQUALS operand { $$ = Expr::makeOpBinary($1, kOpNotEquals, $3); }
 | operand '<' operand { $$ = Expr::makeOpBinary($1, kOpLess, $3); }
 | operand '>' operand { $$ = Expr::makeOpBinary($1, kOpGreater, $3); }
@@ -1172,8 +1195,12 @@ comp_expr : operand '=' operand { $$ = Expr::makeOpBinary($1, kOpEquals, $3); }
 // reduce conflicts when splitting them.
 function_expr : IDENTIFIER '(' ')' opt_window { $$ = Expr::makeFunctionRef($1, new std::vector<Expr*>(), false, $4); }
 | IDENTIFIER '(' opt_distinct expr_list ')' opt_window { $$ = Expr::makeFunctionRef($1, $4, $3, $6); }
-| IDENTIFIER '.' IDENTIFIER '(' ')' opt_window { $$ = Expr::makeFunctionRef($3, $1, new std::vector<Expr*>(), false, $6); }
-| IDENTIFIER '.' IDENTIFIER '(' opt_distinct expr_list ')' opt_window { $$ = Expr::makeFunctionRef($3, $1, $6, $5, $8); };
+| IDENTIFIER '.' IDENTIFIER '(' ')' opt_window {
+  $$ = Expr::makeFunctionRef($3, $1, new std::vector<Expr*>(), false, $6);
+}
+| IDENTIFIER '.' IDENTIFIER '(' opt_distinct expr_list ')' opt_window {
+  $$ = Expr::makeFunctionRef($3, $1, $6, $5, $8);
+};
 
 // Window function expressions, based on https://www.postgresql.org/docs/15/sql-expressions.html#SYNTAX-WINDOW-FUNCTIONS
 // We do not support named windows, collations and exclusions (for simplicity) and filters (not part of the SQL standard).
@@ -1226,10 +1253,13 @@ array_expr : ARRAY '[' expr_list ']' { $$ = Expr::makeArray($3); };
 
 array_index : operand '[' int_literal ']' { $$ = Expr::makeArrayIndex($1, $3->ival); };
 
-between_expr : operand BETWEEN operand AND operand { $$ = Expr::makeBetween($1, $3, $5); };
+between_expr : operand BETWEEN operand AND operand { $$ = Expr::makeBetween($1, $3, $5); }
+| operand NOT BETWEEN operand AND operand { $$ = Expr::makeOpUnary(kOpNot, Expr::makeBetween($1, $4, $6)); };
 
 column_name : IDENTIFIER { $$ = Expr::makeColumnRef($1); }
+| OFFSET { $$ = Expr::makeColumnRef(strdup("offset")); }
 | IDENTIFIER '.' IDENTIFIER { $$ = Expr::makeColumnRef($1, $3); }
+| IDENTIFIER '.' IDENTIFIER '.' IDENTIFIER { $$ = Expr::makeColumnRef($1, $3, $5); }
 | '*' { $$ = Expr::makeStar(); }
 | IDENTIFIER '.' '*' { $$ = Expr::makeStar($1); };
 
@@ -1243,7 +1273,8 @@ bool_literal : TRUE { $$ = Expr::makeLiteral(true); }
 num_literal : FLOATVAL { $$ = Expr::makeLiteral($1); }
 | int_literal;
 
-int_literal : INTVAL { $$ = Expr::makeLiteral($1); };
+int_literal : INTVAL { $$ = Expr::makeLiteral($1); }
+| BIGINTVAL { $$ = Expr::makeLiteralIntString($1); };
 
 null_literal : NULL { $$ = Expr::makeNullLiteral(); };
 
@@ -1440,6 +1471,22 @@ join_clause : table_ref_atomic NATURAL JOIN nonjoin_table_ref_atomic {
   $$ = new TableRef(kTableJoin);
   $$->join = new JoinDefinition();
   $$->join->type = kJoinNatural;
+  $$->join->natural = true;
+  $$->join->left = $1;
+  $$->join->right = $4;
+}
+| table_ref_atomic NATURAL natural_join_type JOIN nonjoin_table_ref_atomic {
+  $$ = new TableRef(kTableJoin);
+  $$->join = new JoinDefinition();
+  $$->join->type = (JoinType)$3;
+  $$->join->natural = true;
+  $$->join->left = $1;
+  $$->join->right = $5;
+}
+| table_ref_atomic CROSS JOIN nonjoin_table_ref_atomic {
+  $$ = new TableRef(kTableJoin);
+  $$->join = new JoinDefinition();
+  $$->join->type = kJoinCross;
   $$->join->left = $1;
   $$->join->right = $4;
 }
@@ -1468,17 +1515,21 @@ opt_join_type : INNER { $$ = kJoinInner; }
 | FULL OUTER { $$ = kJoinFull; }
 | OUTER { $$ = kJoinFull; }
 | FULL { $$ = kJoinFull; }
-| CROSS { $$ = kJoinCross; }
 | /* empty, default */ { $$ = kJoinInner; };
+
+natural_join_type : INNER { $$ = kJoinInner; }
+| LEFT OUTER { $$ = kJoinLeft; }
+| LEFT { $$ = kJoinLeft; }
+| RIGHT OUTER { $$ = kJoinRight; }
+| RIGHT { $$ = kJoinRight; }
+| FULL OUTER { $$ = kJoinFull; }
+| FULL { $$ = kJoinFull; };
 
 join_condition : expr;
 
 /******************************
  * Misc
  ******************************/
-
-opt_semicolon : ';' | /* empty */
-    ;
 
 ident_commalist : IDENTIFIER {
   $$ = new std::vector<char*>();
