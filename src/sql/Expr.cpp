@@ -163,6 +163,12 @@ Expr* Expr::makeLiteral(double value) {
   return e;
 }
 
+Expr* Expr::makeLiteralFloatString(char* value) {
+  Expr* e = new Expr(kExprLiteralFloatString);
+  e->name = value;
+  return e;
+}
+
 Expr* Expr::makeLiteral(char* string) {
   Expr* e = new Expr(kExprLiteralString);
   e->name = string;
@@ -222,6 +228,13 @@ Expr* Expr::makeStar(void) {
 
 Expr* Expr::makeStar(char* table) {
   Expr* e = new Expr(kExprStar);
+  e->table = table;
+  return e;
+}
+
+Expr* Expr::makeStar(char* schema, char* table) {
+  Expr* e = new Expr(kExprStar);
+  e->schema = schema;
   e->table = table;
   return e;
 }
@@ -313,7 +326,7 @@ bool Expr::isType(ExprType exprType) const { return exprType == type; }
 
 bool Expr::isLiteral() const {
   return isType(kExprLiteralInt) || isType(kExprLiteralIntString) || isType(kExprLiteralFloat) ||
-         isType(kExprLiteralString) || isType(kExprParameter) || isType(kExprLiteralNull) ||
+         isType(kExprLiteralFloatString) || isType(kExprLiteralString) || isType(kExprParameter) || isType(kExprLiteralNull) ||
          isType(kExprLiteralDate) || isType(kExprLiteralInterval);
 }
 

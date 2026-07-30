@@ -106,6 +106,9 @@ void printExpression(Expr* expr, uintmax_t num_indent) {
     case kExprLiteralFloat:
       inprint(expr->fval, num_indent);
       break;
+    case kExprLiteralFloatString:
+      inprint(expr->name, num_indent);
+      break;
     case kExprLiteralInt:
       inprint(expr->ival, num_indent);
       break;
@@ -452,7 +455,8 @@ std::ostream& operator<<(std::ostream& os, const OperatorType& op) {
       {kOpBitAnd, "&"},      {kOpBitOr, "|"},
       {kOpBitXor, "^"},      {kOpBitShiftLeft, "<<"},
       {kOpBitShiftRight, ">>"},
-      {kOpEquals, "="},      {kOpNotEquals, "!="},
+      {kOpEquals, "="},      {kOpNullSafeEquals, "<=>"},
+      {kOpNotEquals, "!="},
       {kOpLess, "<"},        {kOpLessEq, "<="},
       {kOpGreater, ">"},     {kOpGreaterEq, ">="},
       {kOpLike, "LIKE"},     {kOpNotLike, "NOT LIKE"},
