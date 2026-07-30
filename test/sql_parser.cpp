@@ -25,6 +25,9 @@ TEST(SQLParserTokenizeTest) {
   test_tokens("SELECT * FROM test;", {SQL_SELECT, '*', SQL_FROM, SQL_IDENTIFIER, ';'});
   test_tokens("SELECT a, 'b' FROM test WITH HINT;",
               {SQL_SELECT, SQL_IDENTIFIER, ',', SQL_STRING, SQL_FROM, SQL_IDENTIFIER, SQL_WITH, SQL_HINT, ';'});
+  test_tokens("SELECT \"a string\" FROM test;",
+              {SQL_SELECT, SQL_STRING, SQL_FROM, SQL_IDENTIFIER, ';'});
+  test_tokens("SELECT 9223372036854775808;", {SQL_SELECT, SQL_BIGINTVAL, ';'});
 }
 
 TEST(SQLParserTokenizeStringifyTest) {

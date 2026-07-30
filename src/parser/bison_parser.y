@@ -178,7 +178,7 @@
  ** Destructor symbols
  *********************************/
 
-%destructor { } <fval> <ival> <bval> <join_type> <order_type> <datetime_field> <column_type_t> <column_constraint_t> <import_type_t> <lock_mode_t> <lock_wait_policy_t> <frame_type> <null_ordering_t>
+%destructor { } <ival> <bval> <join_type> <order_type> <datetime_field> <column_type_t> <column_constraint_t> <import_type_t> <lock_mode_t> <lock_wait_policy_t> <frame_type> <null_ordering_t>
 %destructor {
   free($$.name);
   free($$.schema);
@@ -212,7 +212,7 @@
  *********************************/
 %token <sval> IDENTIFIER STRING
 %token <sval> BIGINTVAL
-%token <fval> FLOATVAL
+%token <sval> FLOATVAL
 %token <ival> INTVAL
 %token NULLSAFEEQUALS
 
@@ -318,6 +318,7 @@
  ** Precedence: lowest to highest
  ******************************/
 %left     OR LOGICALOR
+%precedence ON
 %left     AND LOGICALAND
 %right    NOT
 %nonassoc '=' EQUALS NULLSAFEEQUALS NOTEQUALS LIKE ILIKE
@@ -1251,7 +1252,7 @@ duration_field : datetime_field | datetime_field_plural;
 
 array_expr : ARRAY '[' expr_list ']' { $$ = Expr::makeArray($3); };
 
-array_index : operand '[' int_literal ']' { $$ = Expr::makeArrayIndex($1, $3->ival); };
+array_index : operand '[' INTVAL ']' { $$ = Expr::makeArrayIndex($1, $3); };
 
 between_expr : operand BETWEEN operand AND operand { $$ = Expr::makeBetween($1, $3, $5); }
 | operand NOT BETWEEN operand AND operand { $$ = Expr::makeOpUnary(kOpNot, Expr::makeBetween($1, $4, $6)); };
@@ -1270,7 +1271,7 @@ string_literal : STRING { $$ = Expr::makeLiteral($1); };
 bool_literal : TRUE { $$ = Expr::makeLiteral(true); }
 | FALSE { $$ = Expr::makeLiteral(false); };
 
-num_literal : FLOATVAL { $$ = Expr::makeLiteral($1); }
+num_literal : FLOATVAL { $$ = Expr::makeLiteralFloatString($1); }
 | int_literal;
 
 int_literal : INTVAL { $$ = Expr::makeLiteral($1); }
@@ -1483,12 +1484,20 @@ join_clause : table_ref_atomic NATURAL JOIN nonjoin_table_ref_atomic {
   $$->join->left = $1;
   $$->join->right = $5;
 }
-| table_ref_atomic CROSS JOIN nonjoin_table_ref_atomic {
+| table_ref_atomic CROSS JOIN nonjoin_table_ref_atomic %prec OR {
   $$ = new TableRef(kTableJoin);
   $$->join = new JoinDefinition();
   $$->join->type = kJoinCross;
   $$->join->left = $1;
   $$->join->right = $4;
+}
+| table_ref_atomic CROSS JOIN nonjoin_table_ref_atomic ON join_condition {
+  $$ = new TableRef(kTableJoin);
+  $$->join = new JoinDefinition();
+  $$->join->type = kJoinCross;
+  $$->join->left = $1;
+  $$->join->right = $4;
+  $$->join->condition = $6;
 }
 | table_ref_atomic opt_join_type JOIN table_ref_atomic ON join_condition {
   $$ = new TableRef(kTableJoin);

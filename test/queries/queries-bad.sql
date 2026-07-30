@@ -4,8 +4,8 @@
 !
 !1
 !gibberish;
-!CREATE TABLE "table" FROM TBL FILE 'students.tbl';gibberish
-!CREATE TABLE "table" FROM TBL FILE 'students.tbl';1
+!CREATE TABLE `table` FROM TBL FILE 'students.tbl';gibberish
+!CREATE TABLE `table` FROM TBL FILE 'students.tbl';1
 !CREATE TABLE foo (a int, b int bar);
 !CREATE TABLE foo (a int, b REFERENCES bar);
 !CREATE TABLE foo (a int, b int, FOREIGN (b) REFERENCES bar);
@@ -35,8 +35,7 @@
 !WITH a AS (WITH b AS (SELECT 1) SELECT 1) SELECT 1; # We do not support nested WITH clauses
 !WITH a AS (SELECT ) b AS (SELECT ) SELECT 1; # Missing comma between WITH descriptions
 !BEGIN TRANSACTION transName; # Transaction naming is currently not supported
-!SELECT -9223372036854775809; # Out of int64_t range
-!SELECT 9223372036854775808; # Out of int64_t range
+!SELECT a[9223372036854775808]; # Array indexes are stored as int64_t and must be in range
 !SELECT * FROM t WHERE a = DATE 'anystring';
 !SELECT * FROM t WHERE a = DATE '1996-12-310';
 !SELECT * FROM t WHERE a = DATE '1996-120-31';

@@ -24,7 +24,7 @@ TEST(DeleteStatementTest) {
   ASSERT_NOTNULL(stmt->expr);
   ASSERT(stmt->expr->isType(kExprOperator));
   ASSERT_STREQ(stmt->expr->expr->name, "grade");
-  ASSERT_EQ(stmt->expr->expr2->fval, 2.0);
+  ASSERT_STREQ(stmt->expr->expr2->name, "2.0");
 }
 
 TEST(CreateStatementTest) {
@@ -273,9 +273,9 @@ TEST(UpdateStatementTest) {
   ASSERT_EQ(stmt->updates->size(), 2);
   ASSERT_STREQ(stmt->updates->at(0)->column, "grade");
   ASSERT_STREQ(stmt->updates->at(1)->column, "name");
-  ASSERT(stmt->updates->at(0)->value->isType(kExprLiteralFloat));
+  ASSERT(stmt->updates->at(0)->value->isType(kExprLiteralFloatString));
   ASSERT(stmt->updates->at(1)->value->isType(kExprLiteralString));
-  ASSERT_EQ(stmt->updates->at(0)->value->fval, 5.0);
+  ASSERT_STREQ(stmt->updates->at(0)->value->name, "5.0");
   ASSERT_STREQ(stmt->updates->at(1)->value->name, "test");
 
   ASSERT_NOTNULL(stmt->where);
@@ -298,8 +298,8 @@ TEST(InsertStatementTest) {
   ASSERT_EQ(stmt->values->at(1)->ival, 12345);
   ASSERT_EQ(stmt->values->at(2)->type, kExprLiteralString);
   ASSERT_STREQ(stmt->values->at(2)->name, "Musterhausen");
-  ASSERT_EQ(stmt->values->at(3)->type, kExprLiteralFloat);
-  ASSERT_EQ(stmt->values->at(3)->fval, 2.0);
+  ASSERT_EQ(stmt->values->at(3)->type, kExprLiteralFloatString);
+  ASSERT_STREQ(stmt->values->at(3)->name, "2.0");
   ASSERT_EQ(stmt->values->at(4)->type, kExprOperator);
   ASSERT_EQ(stmt->values->at(4)->opType, kOpUnaryMinus);
   ASSERT(stmt->values->at(4)->expr);

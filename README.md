@@ -1,63 +1,35 @@
 C++ SQL Parser
 =========================
-[![Build Status](https://github.com/hyrise/sql-parser/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hyrise/sql-parser/actions?query=branch%3Amain)
 
+This is a SQL Parser for C++ based on the [Hyrise SQL Parser](https://github.com/hyrise/sql-parser). It parses the given SQL query into C++ objects.
 
-This is a SQL Parser for C++. It parses the given SQL query into C++ objects.
-It has been developed for integration in [Hyrise](https://github.com/hyrise/hyrise), but can be used perfectly well in other environments as well.
+The reasons for this fork are twofold:
+(1) to develop additional ANSI SQL features that were not found in the original `sql-parser` with the hopes of contributing them upstream, and
+(2) Supporting [Qserv](https://github.com/lsst/qserv)'s mySQL dialect (probably won't be upstreamed).
 
-In March 2015 we've also written a short paper outlining discussing some development details and the integration into our database Hyrise. You can find the paper [here](docs/technical_documentation.pdf).
+### Changes that could be upstreamed
 
+The following could likely be upstreamed as they aren't specific to any particular SQL dialect:
 
-## Usage
+* Three-part qualifier: `schema.table.column`
+* Unquoted identifiers may start with `_` (`_foo` was previously rejected since the grammar only allowed a leading letter).
+* Repeated/trailing statement-separator semicolons are now tolerated (e.g. `SELECT 1;;`).
+* `HAVING` is supported without a `GROUP BY` clause (`SelectStatement::having`)
+* `NATURAL LEFT/RIGHT/FULL [OUTER] JOIN` is now parsed, with a new `JoinDefinition::natural` flag
+* Out-of-range integer literals no longer error out. Integers outside `int64_t` range (e.g. `9223372036854775808`) used to trigger a lexer error; they're now preserved as their original text via a new `kExprLiteralIntString` expression type (`Expr::makeLiteralIntString`), the same way oversized values are already handled elsewhere.
+* Float literals preserve their original text instead of being lossily converted through `atof`/`double` (`kExprLiteralFloatString` alongside the existing `kExprLiteralFloat`), avoiding precision/round-trip issues for long decimals.
+* Broader numeric literal syntax: scientific notation (`1e10`, `1.5e-3`) and leading/trailing-dot forms (`.5`, `5.`) are now recognized.
+* Fixed a memory leak in `SQLParser::tokenize()`: the first token's allocated string was never freed (the free-check ran one token too late), and `SQL_BIGINTVAL`/`SQL_FLOATVAL` tokens were missing from the free-check entirely, leaking their strings on every occurrence.
 
-**Note:** You can also find a detailed usage description [here](docs/basic-usage.md).
+### Qserv / MySQL dialect-specific changes
 
-To use the SQL parser in your own projects you simply have to follow these few steps.
+These intentionally diverge from ANSI SQL (and from upstream Hyrise's parsing behavior) to match MySQL syntax that Qserv relies on. They are not drop-in compatible with standard SQL:
 
- 1. Download the [latest release here](https://github.com/hyrise/sql-parser/releases)
- 2. Compile the library `make` to create `libsqlparser.so`
- 3. *(Optional, Recommended)* Run `make install` to copy the library to `/usr/local/lib/`
- 4. Run the tests `make test` to make sure everything worked
- 5. Include the `SQLParser.h` from `src/` (or from `/usr/local/lib/hsql/` if you installed it) and link the library in your project
- 6. Take a look at the [example project here](https://github.com/hyrise/sql-parser/tree/main/example)
-
-```cpp
-#include "hsql/SQLParser.h"
-
-/* ... */
-
-{
-    // Basic Usage Example
-
-    const std::string query = "...";
-    hsql::SQLParserResult result;
-    hsql::SQLParser::parse(query, &result);
-
-    if (result.isValid() && result.size() > 0) {
-        const hsql::SQLStatement* statement = result.getStatement(0);
-
-        if (statement->isType(hsql::kStmtSelect)) {
-            const auto* select = static_cast<const hsql::SelectStatement*>(statement);
-            /* ... */
-        }
-    }
-}
-```
-
-Quick Links:
-
- * [SQLParser.h](src/SQLParser.h)
- * [SQLParserResult.h](src/SQLParserResult.h)
- * [SelectStatement.h](src/sql/SelectStatement.h)
-
-## How to Contribute
-
-**[Developer Documentation](docs/)**
-
-We strongly encourage you to contribute to this project! If you want to contribute to this project there are several options. If you've noticed a bug or would like an improvement let us know by creating a [new issue](https://github.com/hyrise/sql-parser/issues). If you want to develop a new feature yourself or just improve the quality of the system, feel free to fork the reposistory and implement your changes. Open a pull request as soon as your done and we will look over it. If we think it's good then your pull request will be merged into this repository.
-
-
-## License
-
-HYRISE sql-parser is licensed as open source after the MIT License which is declared in the LICENSE file of this project.
+* Backtick-quoted identifiers (`` `mytable` ``)
+* Double-quoted strings are interpreted as string literals, not identifiers. `"foo"` now parses as a `STRING` (with `\"`, `\'`, `""`, and `\\` escape handling). (Qserv has `ANSI_QUOTES` turned off).
+* `||` means logical OR and `&&` means logical AND (MySQL style), rather than `||` being the ANSI SQL string-concatenation operator. Use `CONCAT(a, b)` for concatenation.
+* MySQL-style bitwise operators: `&` (AND), `|` (OR), `^` (XOR), `<<`/`>>` (shift), with MySQL-like operator precedence.
+* `<=>` NULL-safe equality operator (`kOpNullSafeEquals`).
+* `MOD` and `DIV` keyword operators for integer modulo/division, alongside the existing `%` and `/`.
+* `CROSS JOIN ... ON <condition>` is accepted, even though a cross join takes no join condition in ANSI SQL.
+* `OFFSET` can be used as an unquoted column name — a targeted workaround for a specific Qserv query pattern, not general keyword-as-identifier support.

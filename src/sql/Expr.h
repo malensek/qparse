@@ -18,7 +18,6 @@ enum ExprType {
   kExprLiteralFloat,
   kExprLiteralString,
   kExprLiteralInt,
-  kExprLiteralIntString,
   kExprLiteralNull,
   kExprLiteralDate,
   kExprLiteralInterval,
@@ -32,7 +31,11 @@ enum ExprType {
   kExprArray,
   kExprArrayIndex,
   kExprExtract,
-  kExprCast
+  kExprCast,
+
+  // Fork extensions appended to preserve existing enum values.
+  kExprLiteralFloatString,
+  kExprLiteralIntString
 };
 
 // Operator types. These are important for expressions of type kExprOperator.
@@ -52,17 +55,9 @@ enum OperatorType {
   kOpAsterisk,
   kOpSlash,
   kOpPercentage,
-  kOpMod,
-  kOpDiv,
   kOpCaret,
-  kOpBitAnd,
-  kOpBitOr,
-  kOpBitXor,
-  kOpBitShiftLeft,
-  kOpBitShiftRight,
 
   kOpEquals,
-  kOpNullSafeEquals,
   kOpNotEquals,
   kOpLess,
   kOpLessEq,
@@ -80,7 +75,17 @@ enum OperatorType {
   kOpNot,
   kOpUnaryMinus,
   kOpIsNull,
-  kOpExists
+  kOpExists,
+
+  // Fork extensions appended to preserve existing enum values.
+  kOpMod,
+  kOpDiv,
+  kOpBitAnd,
+  kOpBitOr,
+  kOpBitXor,
+  kOpBitShiftLeft,
+  kOpBitShiftRight,
+  kOpNullSafeEquals
 };
 
 enum DatetimeField {
@@ -191,6 +196,8 @@ struct Expr {
   static Expr* makeLiteralIntString(char* val);
 
   static Expr* makeLiteral(double val);
+
+  static Expr* makeLiteralFloatString(char* val);
 
   static Expr* makeLiteral(char* val);
 
