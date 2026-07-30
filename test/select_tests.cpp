@@ -95,16 +95,39 @@ TEST(SelectUnaryMinusTest) {
   ASSERT_EQ(stmt->selectList->at(6)->opType, kOpMinus);
   ASSERT_EQ(stmt->selectList->at(6)->expr->type, kExprLiteralInt);
   ASSERT_EQ(stmt->selectList->at(6)->expr->ival, 10);
-  ASSERT_EQ(stmt->selectList->at(6)->expr2->type, kExprLiteralFloat);
-  ASSERT_EQ(stmt->selectList->at(6)->expr2->fval, 5.2);
+  ASSERT_EQ(stmt->selectList->at(6)->expr2->type, kExprLiteralFloatString);
+  ASSERT_STREQ(stmt->selectList->at(6)->expr2->name, "5.2");
 
   ASSERT_EQ(stmt->selectList->at(7)->type, kExprOperator);
   ASSERT_EQ(stmt->selectList->at(7)->opType, kOpPlus);
   ASSERT_EQ(stmt->selectList->at(7)->expr->ival, 10);
   ASSERT_EQ(stmt->selectList->at(7)->expr2->type, kExprOperator);
   ASSERT_EQ(stmt->selectList->at(7)->expr2->opType, kOpUnaryMinus);
-  ASSERT_EQ(stmt->selectList->at(7)->expr2->expr->type, kExprLiteralFloat);
-  ASSERT_EQ(stmt->selectList->at(7)->expr2->expr->fval, 5.2);
+  ASSERT_EQ(stmt->selectList->at(7)->expr2->expr->type, kExprLiteralFloatString);
+  ASSERT_STREQ(stmt->selectList->at(7)->expr2->expr->name, "5.2");
+}
+
+TEST(SelectFloatLiteralTextTest) {
+  TEST_PARSE_SINGLE_SQL("SELECT 0.12345678901234567890123456789, 1e-20, .5, 5.", kStmtSelect, SelectStatement,
+                        result, stmt);
+
+  ASSERT_EQ(stmt->selectList->size(), 4);
+  ASSERT_STREQ(stmt->selectList->at(0)->name, "0.12345678901234567890123456789");
+  ASSERT_STREQ(stmt->selectList->at(1)->name, "1e-20");
+  ASSERT_STREQ(stmt->selectList->at(2)->name, ".5");
+  ASSERT_STREQ(stmt->selectList->at(3)->name, "5.");
+}
+
+TEST(SelectDoubleQuotedStringTest) {
+  TEST_PARSE_SINGLE_SQL("SELECT \"a\\\"b\", \"a\"\"b\", \"a\\'b\", \"\", \"a\\\\b\"",
+                        kStmtSelect, SelectStatement, result, stmt);
+
+  ASSERT_EQ(stmt->selectList->size(), 5);
+  ASSERT_STREQ(stmt->selectList->at(0)->name, "a\"b");
+  ASSERT_STREQ(stmt->selectList->at(1)->name, "a\"b");
+  ASSERT_STREQ(stmt->selectList->at(2)->name, "a'b");
+  ASSERT_STREQ(stmt->selectList->at(3)->name, "");
+  ASSERT_STREQ(stmt->selectList->at(4)->name, "a\\\\b");
 }
 
 TEST(SelectSubstrTest) {
@@ -144,7 +167,7 @@ TEST(SelectHavingTest) {
   ASSERT(group->having->expr->isType(kExprFunctionRef));
   ASSERT(group->having->expr2->isType(kExprOperator));
   ASSERT_EQ(group->having->expr2->opType, kOpUnaryMinus);
-  ASSERT_EQ(group->having->expr2->expr->fval, 2.0);
+  ASSERT_STREQ(group->having->expr2->expr->name, "2.0");
 }
 
 TEST(SelectDistinctTest) {
@@ -298,7 +321,7 @@ TEST(SelectCaseWhenWhen) {
 
   Expr* whenExpr2 = caseExpr->exprList->at(1);
   ASSERT_EQ(whenExpr2->expr->opType, kOpLess);
-  ASSERT(whenExpr2->expr->expr->isType(kExprLiteralFloat));
+  ASSERT(whenExpr2->expr->expr->isType(kExprLiteralFloatString));
   ASSERT(whenExpr2->expr->expr2->isType(kExprColumnRef));
 }
 
@@ -593,8 +616,12 @@ TEST(JoinTypes) {
 		    SELECT * FROM x full outer join y on a=b; \
 		    SELECT * FROM x natural join y; \
 		    SELECT * FROM x cross join y on a=b; \
+		    SELECT * FROM x cross join y; \
 		    SELECT * FROM x, y where a = b;",
       &result);
+
+  ASSERT(result.isValid());
+  ASSERT_EQ(result.size(), 13);
 
   stmt = (SelectStatement*)result.getStatement(0);
   ASSERT_EQ(stmt->fromTable->join->type, kJoinInner);
@@ -641,6 +668,10 @@ TEST(JoinTypes) {
   ASSERT_FALSE(stmt->fromTable->join->namedColumns);
 
   stmt = (SelectStatement*)result.getStatement(11);
+  ASSERT_EQ(stmt->fromTable->join->type, kJoinCross);
+  ASSERT_FALSE(stmt->fromTable->join->namedColumns);
+
+  stmt = (SelectStatement*)result.getStatement(12);
   ASSERT_NULL(stmt->fromTable->join);
 }
 

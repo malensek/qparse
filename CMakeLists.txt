@@ -4,6 +4,29 @@ project(hyrise_sql_parser
     LANGUAGES CXX
 )
 
+find_package(BISON 3.0 REQUIRED)
+find_package(FLEX 2.6 REQUIRED)
+
+set(PARSER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/parser)
+set(GENERATED_PARSER_FILES
+    ${PARSER_DIR}/bison_parser.cpp
+    ${PARSER_DIR}/bison_parser.h
+    ${PARSER_DIR}/flex_lexer.cpp
+    ${PARSER_DIR}/flex_lexer.h
+)
+
+# bison_parser.y and flex_lexer.l are needed at the same time for other
+# compilation targets, so we wrap it in a single custom command here.
+add_custom_command(
+    OUTPUT ${GENERATED_PARSER_FILES}
+    COMMAND ${BISON_EXECUTABLE} bison_parser.y --output=bison_parser.cpp --defines=bison_parser.h --verbose
+    COMMAND ${FLEX_EXECUTABLE} flex_lexer.l
+    WORKING_DIRECTORY ${PARSER_DIR}
+    DEPENDS ${PARSER_DIR}/bison_parser.y ${PARSER_DIR}/flex_lexer.l
+    COMMENT "Generating SQL parser (bison) and lexer (flex)"
+    VERBATIM
+)
+
 add_library(sqlparser STATIC)
 add_library(hyrise_sql_parser::sqlparser ALIAS sqlparser)
 
@@ -27,6 +50,13 @@ target_sources(sqlparser PRIVATE
     src/sql/SQLStatement.cpp
     src/sql/statements.cpp
     src/util/sqlhelper.cpp
+)
+
+# src/SQLParser.cpp includes both generated headers directly but isn't itself
+# one of the custom command's outputs, so it needs an explicit dependency on
+# one of them to be scheduled after code generation runs.
+set_source_files_properties(src/SQLParser.cpp
+    PROPERTIES OBJECT_DEPENDS ${PARSER_DIR}/bison_parser.h
 )
 
 set_source_files_properties(

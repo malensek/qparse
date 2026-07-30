@@ -21,7 +21,7 @@
 static thread_local std::stringstream strbuf;
 
 %}
-%x singlequotedstring
+%x singlequotedstring doublequotedstring
 
 /***************************
  ** Section 2: Rules
@@ -249,7 +249,7 @@ CHARACTER[ \t\n]+VARYING TOKEN(CHARACTER_VARYING)
 [0-9]+"."[0-9]*([eE][-+]?[0-9]+)? |
 "."[0-9]+([eE][-+]?[0-9]+)? |
 [0-9]+[eE][-+]?[0-9]+  {
-  yylval->fval = atof(yytext);
+  yylval->sval = strdup(yytext);
   return SQL_FLOATVAL;
 }
 
@@ -273,11 +273,14 @@ CHARACTER[ \t\n]+VARYING TOKEN(CHARACTER_VARYING)
   return SQL_INTVAL;
 }
 
-\"[^\"\n]+\" {
-  // Crop the leading and trailing quote char
-  yylval->sval = hsql::substr(yytext, 1, strlen(yytext)-1);
-  return SQL_IDENTIFIER;
-}
+\"                            { BEGIN doublequotedstring; strbuf.clear(); strbuf.str(""); }
+<doublequotedstring>\"\"      { strbuf << '"'; }
+<doublequotedstring>\\\"      { strbuf << '"'; }
+<doublequotedstring>\\\'      { strbuf << '\''; }
+<doublequotedstring>\\.       { strbuf << yytext; }
+<doublequotedstring>[^"\\]+   { strbuf << yytext; }
+<doublequotedstring>\"        { BEGIN 0; yylval->sval = strdup(strbuf.str().c_str()); return SQL_STRING; }
+<doublequotedstring><<EOF>>   { fprintf(stderr, "[SQL-Lexer-Error] Unterminated string\n"); return 0; }
 
 `[^`\n]+` {
   // Crop the leading and trailing quote char
