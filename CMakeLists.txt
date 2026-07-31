@@ -15,14 +15,8 @@ set(GENERATED_PARSER_FILES
     ${PARSER_DIR}/flex_lexer.h
 )
 
-# bison_parser.y and flex_lexer.l include each other's generated header, and
-# both are included relative to ${PARSER_DIR} (e.g. "../sql/statements.h"), so
-# generation must happen in-place there rather than in a separate build
-# directory. Both tools are run from a single custom command (rather than via
-# separate BISON_TARGET/FLEX_TARGET calls) so that any source needing either
-# generated header only has to depend on one recipe, instead of requiring
-# OBJECT_DEPENDS edges into two independent custom commands, which the
-# Makefile generator can invoke redundantly under parallel builds.
+# bison_parser.y and flex_lexer.l are needed at the same time for other
+# compilation targets, so we wrap it in a single custom command here.
 add_custom_command(
     OUTPUT ${GENERATED_PARSER_FILES}
     COMMAND ${BISON_EXECUTABLE} bison_parser.y --output=bison_parser.cpp --defines=bison_parser.h --verbose

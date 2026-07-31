@@ -11,15 +11,14 @@ The reasons for this fork are twofold:
 
 The following could likely be upstreamed as they aren't specific to any particular SQL dialect:
 
-* Three-part qualifiers: `schema.table.column` and `schema.table.*`
+* Three-part qualifier: `schema.table.column`
 * Unquoted identifiers may start with `_` (`_foo` was previously rejected since the grammar only allowed a leading letter).
+* Repeated/trailing statement-separator semicolons are now tolerated (e.g. `SELECT 1;;`).
 * `HAVING` is supported without a `GROUP BY` clause (`SelectStatement::having`)
 * `NATURAL LEFT/RIGHT/FULL [OUTER] JOIN` is now parsed, with a new `JoinDefinition::natural` flag
-
 * Out-of-range integer literals no longer error out. Integers outside `int64_t` range (e.g. `9223372036854775808`) used to trigger a lexer error; they're now preserved as their original text via a new `kExprLiteralIntString` expression type (`Expr::makeLiteralIntString`), the same way oversized values are already handled elsewhere.
 * Float literals preserve their original text instead of being lossily converted through `atof`/`double` (`kExprLiteralFloatString` alongside the existing `kExprLiteralFloat`), avoiding precision/round-trip issues for long decimals.
 * Broader numeric literal syntax: scientific notation (`1e10`, `1.5e-3`) and leading/trailing-dot forms (`.5`, `5.`) are now recognized.
-* Repeated/trailing statement-separator semicolons are now tolerated (e.g. `SELECT 1;;`).
 * Fixed a memory leak in `SQLParser::tokenize()`: the first token's allocated string was never freed (the free-check ran one token too late), and `SQL_BIGINTVAL`/`SQL_FLOATVAL` tokens were missing from the free-check entirely, leaking their strings on every occurrence.
 
 ### Qserv / MySQL dialect-specific changes
@@ -34,4 +33,3 @@ These intentionally diverge from ANSI SQL (and from upstream Hyrise's parsing be
 * `MOD` and `DIV` keyword operators for integer modulo/division, alongside the existing `%` and `/`.
 * `CROSS JOIN ... ON <condition>` is accepted, even though a cross join takes no join condition in ANSI SQL.
 * `OFFSET` can be used as an unquoted column name — a targeted workaround for a specific Qserv query pattern, not general keyword-as-identifier support.
-
