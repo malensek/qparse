@@ -232,13 +232,6 @@ Expr* Expr::makeStar(char* table) {
   return e;
 }
 
-Expr* Expr::makeStar(char* schema, char* table) {
-  Expr* e = new Expr(kExprStar);
-  e->schema = schema;
-  e->table = table;
-  return e;
-}
-
 Expr* Expr::makeFunctionRef(char* func_name, std::vector<Expr*>* exprList, bool distinct, WindowDescription* window) {
   Expr* e = new Expr(kExprFunctionRef);
   e->name = func_name;

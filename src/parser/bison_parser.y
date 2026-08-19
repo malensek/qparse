@@ -239,6 +239,7 @@
 %token RANGE ROWS GROUPS UNBOUNDED FOLLOWING PRECEDING CURRENT_ROW
 %token UNIQUE PRIMARY FOREIGN KEY REFERENCES
 %token BITSHIFTLEFT BITSHIFTRIGHT LOGICALAND LOGICALOR
+%token LEX_ERROR "lexer error"
 
 /*********************************
  ** Non-Terminal types (http://www.gnu.org/software/bison/manual/html_node/Type-Decl.html)

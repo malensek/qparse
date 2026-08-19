@@ -58,6 +58,11 @@ bool SQLParser::tokenize(const std::string& sql, std::vector<int16_t>* tokens) {
   // Note: hsql_lex returns int, but we know that its range is within 16 bit.
   int16_t token = hsql_lex(&yylval, &yylloc, scanner);
   while (token != 0) {
+    if (token == SQL_LEX_ERROR) {
+      hsql__delete_buffer(state, scanner);
+      hsql_lex_destroy(scanner);
+      return false;
+    }
     tokens->push_back(token);
     if (token == SQL_IDENTIFIER || token == SQL_STRING || token == SQL_BIGINTVAL ||
         token == SQL_FLOATVAL) {

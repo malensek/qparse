@@ -7,6 +7,8 @@ project(hyrise_sql_parser
 find_package(BISON 3.0 REQUIRED)
 find_package(FLEX 2.6 REQUIRED)
 
+include(CTest)
+
 set(PARSER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/parser)
 set(GENERATED_PARSER_FILES
     ${PARSER_DIR}/bison_parser.cpp
@@ -68,5 +70,36 @@ set_source_files_properties(
     src/parser/flex_lexer.cpp
     PROPERTIES COMPILE_OPTIONS "-Wno-sign-compare;-Wno-register"
 )
+
+add_executable(sqlparser_tests
+    test/auto_query_file_test.cpp
+    test/prepare_tests.cpp
+    test/select_tests.cpp
+    test/sql_parser.cpp
+    test/sql_tests.cpp
+    test/tpc_h_tests.cpp
+)
+
+target_compile_features(sqlparser_tests PRIVATE cxx_std_17)
+target_include_directories(sqlparser_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/test
+)
+target_link_libraries(sqlparser_tests PRIVATE sqlparser)
+
+# The tests include generated parser headers, so ensure generation and the
+# library build complete before compiling the test target.
+add_dependencies(sqlparser_tests sqlparser)
+
+if(BUILD_TESTING)
+    add_test(
+        NAME sqlparser_unit_tests
+        COMMAND sqlparser_tests
+            -f test/queries/queries-good.sql
+            -f test/queries/queries-bad.sql
+    )
+    set_tests_properties(sqlparser_unit_tests PROPERTIES
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+endif()
 
 install(TARGETS sqlparser)

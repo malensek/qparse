@@ -30,6 +30,25 @@ TEST(SQLParserTokenizeTest) {
   test_tokens("SELECT 9223372036854775808;", {SQL_SELECT, SQL_BIGINTVAL, ';'});
 }
 
+TEST(SQLParserLexerErrorTest) {
+  const std::vector<std::string> invalid_queries = {
+      "SELECT 1 @ 2",
+      "SELECT 1; @",
+      "SELECT 1; \"unterminated",
+      "SELECT 1; 'unterminated",
+  };
+
+  for (const auto& query : invalid_queries) {
+    SQLParserResult result;
+    SQLParser::parse(query, &result);
+    ASSERT_FALSE(result.isValid());
+    ASSERT_NOTNULL(result.errorMsg());
+
+    std::vector<int16_t> tokens;
+    ASSERT_FALSE(SQLParser::tokenize(query, &tokens));
+  }
+}
+
 TEST(SQLParserTokenizeStringifyTest) {
   const std::string query = "SELECT * FROM test;";
   std::vector<int16_t> tokens;

@@ -219,8 +219,6 @@ struct Expr {
 
   static Expr* makeStar(char* table);
 
-  static Expr* makeStar(char* schema, char* table);
-
   static Expr* makeFunctionRef(char* func_name, std::vector<Expr*>* exprList, bool distinct, WindowDescription* window);
 
   static Expr* makeFunctionRef(char* func_name, char* schema, std::vector<Expr*>* exprList, bool distinct, WindowDescription* window);

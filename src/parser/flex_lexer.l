@@ -280,7 +280,7 @@ CHARACTER[ \t\n]+VARYING TOKEN(CHARACTER_VARYING)
 <doublequotedstring>\\.       { strbuf << yytext; }
 <doublequotedstring>[^"\\]+   { strbuf << yytext; }
 <doublequotedstring>\"        { BEGIN 0; yylval->sval = strdup(strbuf.str().c_str()); return SQL_STRING; }
-<doublequotedstring><<EOF>>   { fprintf(stderr, "[SQL-Lexer-Error] Unterminated string\n"); return 0; }
+<doublequotedstring><<EOF>>   { fprintf(stderr, "[SQL-Lexer-Error] Unterminated string\n"); return SQL_LEX_ERROR; }
 
 `[^`\n]+` {
   // Crop the leading and trailing quote char
@@ -297,9 +297,9 @@ CHARACTER[ \t\n]+VARYING TOKEN(CHARACTER_VARYING)
 <singlequotedstring>\'\'    { strbuf << '\''; }
 <singlequotedstring>[^']*   { strbuf << yytext; }
 <singlequotedstring>\'      { BEGIN 0; yylval->sval = strdup(strbuf.str().c_str()); return SQL_STRING; }
-<singlequotedstring><<EOF>> { fprintf(stderr, "[SQL-Lexer-Error] Unterminated string\n"); return 0; }
+<singlequotedstring><<EOF>> { fprintf(stderr, "[SQL-Lexer-Error] Unterminated string\n"); return SQL_LEX_ERROR; }
 
-. { fprintf(stderr, "[SQL-Lexer-Error] Unknown Character: %c\n", yytext[0]); return 0; }
+. { fprintf(stderr, "[SQL-Lexer-Error] Unknown Character: %c\n", yytext[0]); return SQL_LEX_ERROR; }
 
 %%
 /***************************
