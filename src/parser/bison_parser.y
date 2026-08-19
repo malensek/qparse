@@ -268,7 +268,7 @@
 %type <bval>                   opt_not_exists opt_exists opt_distinct opt_all
 %type <ival_pair>              opt_decimal_specification
 %type <ival>                   opt_time_precision
-%type <join_type>              opt_join_type natural_join_type
+%type <join_type>              outer_join_type natural_join_type
 %type <table>                  opt_from_clause from_clause table_ref table_ref_atomic table_ref_name nonjoin_table_ref_atomic
 %type <table>                  join_clause table_ref_name_no_alias
 %type <expr>                   expr operand scalar_expr unary_expr binary_expr logic_expr exists_expr extract_expr cast_expr
@@ -1262,8 +1262,7 @@ column_name : IDENTIFIER { $$ = Expr::makeColumnRef($1); }
 | IDENTIFIER '.' IDENTIFIER { $$ = Expr::makeColumnRef($1, $3); }
 | IDENTIFIER '.' IDENTIFIER '.' IDENTIFIER { $$ = Expr::makeColumnRef($1, $3, $5); }
 | '*' { $$ = Expr::makeStar(); }
-| IDENTIFIER '.' '*' { $$ = Expr::makeStar($1); }
-| IDENTIFIER '.' IDENTIFIER '.' '*' { $$ = Expr::makeStar($1, $3); };
+| IDENTIFIER '.' '*' { $$ = Expr::makeStar($1); };
 
 literal : string_literal | bool_literal | num_literal | null_literal | date_literal | interval_literal | param_expr;
 
@@ -1500,15 +1499,61 @@ join_clause : table_ref_atomic NATURAL JOIN nonjoin_table_ref_atomic {
   $$->join->right = $4;
   $$->join->condition = $6;
 }
-| table_ref_atomic opt_join_type JOIN table_ref_atomic ON join_condition {
+| table_ref_atomic JOIN nonjoin_table_ref_atomic %prec OR {
   $$ = new TableRef(kTableJoin);
   $$->join = new JoinDefinition();
-  $$->join->type = (JoinType)$2;
+  $$->join->type = kJoinInner;
+  $$->join->left = $1;
+  $$->join->right = $3;
+}
+| table_ref_atomic INNER JOIN nonjoin_table_ref_atomic %prec OR {
+  $$ = new TableRef(kTableJoin);
+  $$->join = new JoinDefinition();
+  $$->join->type = kJoinInner;
+  $$->join->left = $1;
+  $$->join->right = $4;
+}
+| table_ref_atomic JOIN nonjoin_table_ref_atomic ON join_condition {
+  $$ = new TableRef(kTableJoin);
+  $$->join = new JoinDefinition();
+  $$->join->type = kJoinInner;
+  $$->join->left = $1;
+  $$->join->right = $3;
+  $$->join->condition = $5;
+}
+| table_ref_atomic INNER JOIN nonjoin_table_ref_atomic ON join_condition {
+  $$ = new TableRef(kTableJoin);
+  $$->join = new JoinDefinition();
+  $$->join->type = kJoinInner;
   $$->join->left = $1;
   $$->join->right = $4;
   $$->join->condition = $6;
 }
-| table_ref_atomic opt_join_type JOIN table_ref_atomic USING '(' ident_commalist ')' {
+| table_ref_atomic outer_join_type JOIN nonjoin_table_ref_atomic ON join_condition {
+  $$ = new TableRef(kTableJoin);
+  $$->join = new JoinDefinition();
+  $$->join->type = $2;
+  $$->join->left = $1;
+  $$->join->right = $4;
+  $$->join->condition = $6;
+}
+| table_ref_atomic JOIN nonjoin_table_ref_atomic USING '(' ident_commalist ')' {
+  $$ = new TableRef(kTableJoin);
+  $$->join = new JoinDefinition();
+  $$->join->type = kJoinInner;
+  $$->join->left = $1;
+  $$->join->right = $3;
+  $$->join->namedColumns = $6;
+}
+| table_ref_atomic INNER JOIN nonjoin_table_ref_atomic USING '(' ident_commalist ')' {
+  $$ = new TableRef(kTableJoin);
+  $$->join = new JoinDefinition();
+  $$->join->type = kJoinInner;
+  $$->join->left = $1;
+  $$->join->right = $4;
+  $$->join->namedColumns = $7;
+}
+| table_ref_atomic outer_join_type JOIN nonjoin_table_ref_atomic USING '(' ident_commalist ')' {
   $$ = new TableRef(kTableJoin);
   $$->join = new JoinDefinition();
   $$->join->type = $2;
@@ -1517,15 +1562,13 @@ join_clause : table_ref_atomic NATURAL JOIN nonjoin_table_ref_atomic {
   $$->join->namedColumns = $7;
 };
 
-opt_join_type : INNER { $$ = kJoinInner; }
-| LEFT OUTER { $$ = kJoinLeft; }
+outer_join_type : LEFT OUTER { $$ = kJoinLeft; }
 | LEFT { $$ = kJoinLeft; }
 | RIGHT OUTER { $$ = kJoinRight; }
 | RIGHT { $$ = kJoinRight; }
 | FULL OUTER { $$ = kJoinFull; }
 | OUTER { $$ = kJoinFull; }
-| FULL { $$ = kJoinFull; }
-| /* empty, default */ { $$ = kJoinInner; };
+| FULL { $$ = kJoinFull; };
 
 natural_join_type : INNER { $$ = kJoinInner; }
 | LEFT OUTER { $$ = kJoinLeft; }
