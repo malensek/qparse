@@ -31,7 +31,10 @@ fi
 #################################################
 # Running memory leak checks (only on Linux).
 unamestr=$(uname)
-if [[ "$unamestr" == 'Linux' ]]; then
+if [[ "$CXXFLAGS $LDFLAGS" == *-fsanitize=* ]]; then
+  # Valgrind cannot run sanitizer-instrumented binaries.
+  printf "\n${YELLOW}Skipping memory leak checks (sanitizer build)!${NC}\n"
+elif [[ "$unamestr" == 'Linux' ]]; then
   printf "\n${GREEN}Running memory leak checks...${NC}\n"
   valgrind --leak-check=full --error-exitcode=200 --log-fd=3 \
     bin/tests -f "test/queries/queries-good.sql" -f "test/queries/queries-bad.sql" \

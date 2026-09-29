@@ -109,3 +109,18 @@ jobs:
           BISON=${BISON} FLEX=${FLEX} make -j $(nproc) mode=debug ${{matrix.build_options}}
           BISON=${BISON} FLEX=${FLEX} make test
           make test_example
+
+      - name: Build Parser and Lexer from Scratch (Sanitizers)
+        # Runs the tests with ASAN and UBSAN. test.sh skips valgrind for sanitizer builds.
+        if: startsWith(matrix.name, 'clang')
+        env:
+          CXXFLAGS: -fsanitize=address,undefined -fno-sanitize-recover=undefined
+          LDFLAGS: -fsanitize=address,undefined
+        run: |
+          if [[ "$(uname)" == "Linux" ]]; then
+            apt-get install --no-install-recommends -y "${CC/clang/libclang-rt}-dev"
+          fi
+          BISON=${BISON} FLEX=${FLEX} make cleanall
+          BISON=${BISON} FLEX=${FLEX} make -j $(nproc)
+          BISON=${BISON} FLEX=${FLEX} make test
+          make test_example

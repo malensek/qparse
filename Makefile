@@ -36,7 +36,7 @@ GMAKE = make mode=$(mode)
 NAME := sqlparser
 PARSER_CPP = $(SRCPARSER)/bison_parser.cpp  $(SRCPARSER)/flex_lexer.cpp
 PARSER_H   = $(SRCPARSER)/bison_parser.h    $(SRCPARSER)/flex_lexer.h
-LIB_CFLAGS = -std=c++17 $(OPT_FLAG)
+LIB_CFLAGS = -std=c++17 $(OPT_FLAG) $(CXXFLAGS)
 
 relaxed_build ?= "off"
 ifeq ($(relaxed_build), on)
@@ -59,7 +59,7 @@ else
 	LIB_BUILD   = lib$(NAME).so
 	LIBLINKER   = $(CXX)
 	LIB_CFLAGS += -fPIC
-	LIB_LFLAGS  = -shared -o
+	LIB_LFLAGS  = $(LDFLAGS) -shared -o
 endif
 LIB_CPP = $(sort $(shell find $(SRC) -name '*.cpp' -not -path "$(SRCPARSER)/*") $(PARSER_CPP))
 LIB_H   = $(shell find $(SRC) -name '*.h' -not -path "$(SRCPARSER)/*") $(PARSER_H)
@@ -135,7 +135,7 @@ $(BM_BUILD): $(BM_ALL) $(LIB_BUILD)
 ############ Test & Example ############
 ########################################
 TEST_BUILD  = $(BIN)/tests
-TEST_CFLAGS = -std=c++1z -Wall -Werror -Isrc/ -Itest/ -L./ $(OPT_FLAG)
+TEST_CFLAGS = -std=c++1z -Wall -Werror -Isrc/ -Itest/ -L./ $(OPT_FLAG) $(CXXFLAGS) $(LDFLAGS)
 TEST_CPP    = $(shell find test/ -name '*.cpp')
 TEST_ALL    = $(shell find test/ -name '*.cpp') $(shell find test/ -name '*.h')
 EXAMPLE_SRC = $(shell find example/ -name '*.cpp') $(shell find example/ -name '*.h')
