@@ -277,7 +277,7 @@ CHARACTER[ \t\n]+VARYING TOKEN(CHARACTER_VARYING)
 <doublequotedstring>\"\"      { strbuf << '"'; }
 <doublequotedstring>\\\"      { strbuf << '"'; }
 <doublequotedstring>\\\'      { strbuf << '\''; }
-<doublequotedstring>\\.       { strbuf << yytext; }
+<doublequotedstring>\\(.|\n)   { strbuf << yytext; }
 <doublequotedstring>[^"\\]+   { strbuf << yytext; }
 <doublequotedstring>\"        { BEGIN 0; yylval->sval = strdup(strbuf.str().c_str()); return SQL_STRING; }
 <doublequotedstring><<EOF>>   { fprintf(stderr, "[SQL-Lexer-Error] Unterminated string\n"); return SQL_LEX_ERROR; }
@@ -295,7 +295,10 @@ CHARACTER[ \t\n]+VARYING TOKEN(CHARACTER_VARYING)
 
 \'                          { BEGIN singlequotedstring; strbuf.clear(); strbuf.str(""); }  // Clear strbuf manually, see #170
 <singlequotedstring>\'\'    { strbuf << '\''; }
-<singlequotedstring>[^']*   { strbuf << yytext; }
+<singlequotedstring>\\\'    { strbuf << '\''; }
+<singlequotedstring>\\\"    { strbuf << '"'; }
+<singlequotedstring>\\(.|\n) { strbuf << yytext; }
+<singlequotedstring>[^'\\]+ { strbuf << yytext; }
 <singlequotedstring>\'      { BEGIN 0; yylval->sval = strdup(strbuf.str().c_str()); return SQL_STRING; }
 <singlequotedstring><<EOF>> { fprintf(stderr, "[SQL-Lexer-Error] Unterminated string\n"); return SQL_LEX_ERROR; }
 

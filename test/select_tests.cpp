@@ -118,6 +118,7 @@ TEST(SelectFloatLiteralTextTest) {
   ASSERT_STREQ(stmt->selectList->at(3)->name, "5.");
 }
 
+// Q02
 TEST(SelectDoubleQuotedStringTest) {
   TEST_PARSE_SINGLE_SQL("SELECT \"a\\\"b\", \"a\"\"b\", \"a\\'b\", \"\", \"a\\\\b\"",
                         kStmtSelect, SelectStatement, result, stmt);
@@ -128,6 +129,44 @@ TEST(SelectDoubleQuotedStringTest) {
   ASSERT_STREQ(stmt->selectList->at(2)->name, "a'b");
   ASSERT_STREQ(stmt->selectList->at(3)->name, "");
   ASSERT_STREQ(stmt->selectList->at(4)->name, "a\\\\b");
+}
+
+// Q02
+TEST(SelectSingleQuotedBackslashTest) {
+  TEST_PARSE_SINGLE_SQL(R"(SELECT 'it\'s', 'a\\', 'a\\b', 'a\"b', 'a\nb', 'a''b', 'a\%')", kStmtSelect,
+                        SelectStatement, result, stmt);
+
+  ASSERT_EQ(stmt->selectList->size(), 7);
+  ASSERT_STREQ(stmt->selectList->at(0)->name, "it's");
+  ASSERT_STREQ(stmt->selectList->at(1)->name, R"(a\\)");
+  ASSERT_STREQ(stmt->selectList->at(2)->name, R"(a\\b)");
+  ASSERT_STREQ(stmt->selectList->at(3)->name, "a\"b");
+  ASSERT_STREQ(stmt->selectList->at(4)->name, R"(a\nb)");
+  ASSERT_STREQ(stmt->selectList->at(5)->name, "a'b");
+  ASSERT_STREQ(stmt->selectList->at(6)->name, R"(a\%)");
+}
+
+// Q02: a backslash before a quote must not end the string, or the parser and MySQL disagree on the query structure.
+TEST(SelectSingleQuotedBackslashBoundaryTest) {
+  TEST_PARSE_SINGLE_SQL(R"(SELECT * FROM t WHERE x = 'a\' AND y = ' OR 1=1 -- ')", kStmtSelect, SelectStatement,
+                        result, stmt);
+
+  const Expr* where = stmt->whereClause;
+  ASSERT_EQ(where->opType, kOpOr);
+  ASSERT_EQ(where->expr->opType, kOpEquals);
+  ASSERT_STREQ(where->expr->expr->name, "x");
+  ASSERT(where->expr->expr2->isType(kExprLiteralString));
+  ASSERT_STREQ(where->expr->expr2->name, "a' AND y = ");
+  ASSERT_EQ(where->expr2->opType, kOpEquals);
+}
+
+// Q02: a backslash followed by a line break is kept as a pair like any other backslash escape.
+TEST(SelectQuotedBackslashNewlineTest) {
+  TEST_PARSE_SINGLE_SQL("SELECT \"a\\\nb\", 'a\\\nb'", kStmtSelect, SelectStatement, result, stmt);
+
+  ASSERT_EQ(stmt->selectList->size(), 2);
+  ASSERT_STREQ(stmt->selectList->at(0)->name, "a\\\nb");
+  ASSERT_STREQ(stmt->selectList->at(1)->name, "a\\\nb");
 }
 
 TEST(SelectSubstrTest) {

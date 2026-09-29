@@ -29,7 +29,7 @@ The following could likely be upstreamed as they aren't specific to any particul
 These intentionally diverge from ANSI SQL (and from upstream Hyrise's parsing behavior) to match MySQL syntax that Qserv relies on. They are not drop-in compatible with standard SQL:
 
 * **Q01**: Backtick-quoted identifiers (`` `mytable` ``)
-* **Q02**: Double-quoted strings are interpreted as string literals, not identifiers. `"foo"` parses as a `STRING` (with `\"`, `\'`, `""`, and `\\` escape handling). (Qserv has `ANSI_QUOTES` turned off).
+* **Q02**: Double-quoted strings are interpreted as string literals, not identifiers (Qserv has `ANSI_QUOTES` turned off). Quotes use MySQL's backslash escapes (e.g., `\"`, `\'`, `""`, `''`). Other backslash pairs (e.g., `\\`) are kept as typed.
 * **Q03**: `||` means logical OR and `&&` means logical AND (MySQL style), rather than `||` being the ANSI SQL string-concatenation operator. Use `CONCAT(a, b)` for concatenation.
 * **Q04**: MySQL-style bitwise operators: `&` (AND), `|` (OR), `^` (XOR), `<<`/`>>` (shift), with MySQL-like operator precedence.
 * **Q05**: `<=>` NULL-safe equality operator (`kOpNullSafeEquals`).
