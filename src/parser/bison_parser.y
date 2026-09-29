@@ -1128,7 +1128,9 @@ expr_alias : expr opt_alias {
   }
 };
 
-expr : operand | between_expr | logic_expr | exists_expr | in_expr;
+// NOT negates the full predicate. Changed from upstream, since it would parse NOT x IN (...) as (NOT x) IN (...).
+expr : operand | between_expr | logic_expr | exists_expr | in_expr
+| NOT expr { $$ = Expr::makeOpUnary(kOpNot, $2); };
 
 operand : '(' expr ')' { $$ = $2; }
 | array_index | scalar_expr | unary_expr | binary_expr | case_expr | function_expr | extract_expr | cast_expr |
@@ -1139,7 +1141,6 @@ operand : '(' expr ')' { $$ = $2; }
 scalar_expr : column_name | literal;
 
 unary_expr : '-' operand { $$ = Expr::makeOpUnary(kOpUnaryMinus, $2); }
-| NOT operand { $$ = Expr::makeOpUnary(kOpNot, $2); }
 | operand ISNULL { $$ = Expr::makeOpUnary(kOpIsNull, $1); }
 | operand IS NULL { $$ = Expr::makeOpUnary(kOpIsNull, $1); }
 | operand IS NOT NULL { $$ = Expr::makeOpUnary(kOpNot, Expr::makeOpUnary(kOpIsNull, $1)); };
@@ -1181,8 +1182,7 @@ case_expr : CASE expr case_list END { $$ = Expr::makeCase($2, $3, nullptr); }
 case_list : WHEN expr THEN expr { $$ = Expr::makeCaseList(Expr::makeCaseListElement($2, $4)); }
 | case_list WHEN expr THEN expr { $$ = Expr::caseListAppend($1, Expr::makeCaseListElement($3, $5)); };
 
-exists_expr : EXISTS '(' select_no_paren ')' { $$ = Expr::makeExists($3); }
-| NOT EXISTS '(' select_no_paren ')' { $$ = Expr::makeOpUnary(kOpNot, Expr::makeExists($4)); };
+exists_expr : EXISTS '(' select_no_paren ')' { $$ = Expr::makeExists($3); };
 
 comp_expr : operand '=' operand { $$ = Expr::makeOpBinary($1, kOpEquals, $3); }
 | operand EQUALS operand { $$ = Expr::makeOpBinary($1, kOpEquals, $3); }

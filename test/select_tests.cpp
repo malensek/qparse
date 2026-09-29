@@ -234,6 +234,54 @@ TEST(SelectBetweenTest) {
   ASSERT_STREQ(where->exprList->at(1)->getName(), "c");
 }
 
+// H12
+TEST(SelectPrefixNotPredicateTest) {
+  const std::vector<std::pair<std::string, OperatorType>> predicates = {{"x IN (1,2,NULL)", kOpIn},
+                                                                        {"x BETWEEN 0 AND 1", kOpBetween},
+                                                                        {"x = 1", kOpEquals},
+                                                                        {"x IS NULL", kOpIsNull},
+                                                                        {"x LIKE 'a%'", kOpLike},
+                                                                        {"EXISTS (SELECT x FROM other)", kOpExists},
+                                                                        {"x IN (SELECT x FROM other)", kOpIn}};
+  for (const auto& predicate : predicates) {
+    TEST_PARSE_SINGLE_SQL("SELECT x FROM t WHERE NOT " + predicate.first, kStmtSelect, SelectStatement, result, stmt);
+    const Expr* where = stmt->whereClause;
+    ASSERT_EQ(where->opType, kOpNot);
+    ASSERT_NOTNULL(where->expr);
+    ASSERT_EQ(where->expr->opType, predicate.second);
+  }
+}
+
+// H12
+TEST(SelectPrefixNotLogicalPrecedenceTest) {
+  TEST_PARSE_SINGLE_SQL("SELECT x FROM t WHERE NOT x IN (1,NULL) AND y = 2 OR NOT z BETWEEN 0 AND 1", kStmtSelect,
+                        SelectStatement, result, stmt);
+  const Expr* where = stmt->whereClause;
+  ASSERT_EQ(where->opType, kOpOr);
+  ASSERT_EQ(where->expr->opType, kOpAnd);
+  ASSERT_EQ(where->expr->expr->opType, kOpNot);
+  ASSERT_EQ(where->expr->expr->expr->opType, kOpIn);
+  ASSERT_EQ(where->expr->expr2->opType, kOpEquals);
+  ASSERT_EQ(where->expr2->opType, kOpNot);
+  ASSERT_EQ(where->expr2->expr->opType, kOpBetween);
+}
+
+// H12
+TEST(SelectPrefixNotExplicitOperandTest) {
+  TEST_PARSE_SINGLE_SQL("SELECT x FROM t WHERE (NOT x) IN (1,2)", kStmtSelect, SelectStatement, result, stmt);
+  ASSERT_EQ(stmt->whereClause->opType, kOpIn);
+  ASSERT_EQ(stmt->whereClause->expr->opType, kOpNot);
+  ASSERT_EQ(stmt->whereClause->expr->expr->type, kExprColumnRef);
+}
+
+// H12
+TEST(SelectPrefixNotNestedTest) {
+  TEST_PARSE_SINGLE_SQL("SELECT x FROM t WHERE NOT x NOT BETWEEN 0 AND 1", kStmtSelect, SelectStatement, result, stmt);
+  ASSERT_EQ(stmt->whereClause->opType, kOpNot);
+  ASSERT_EQ(stmt->whereClause->expr->opType, kOpNot);
+  ASSERT_EQ(stmt->whereClause->expr->expr->opType, kOpBetween);
+}
+
 TEST(SelectConditionalSelectTest) {
   TEST_PARSE_SINGLE_SQL(
       "SELECT * FROM t WHERE a = (SELECT MIN(v) FROM tt) AND EXISTS (SELECT * FROM test WHERE x < a);", kStmtSelect,
