@@ -30,6 +30,15 @@ TEST(SQLParserTokenizeTest) {
   test_tokens("SELECT 9223372036854775808;", {SQL_SELECT, SQL_BIGINTVAL, ';'});
 }
 
+// H10 (adapted from hyrise/sql-parser#262): will induce a memory leak if allocations by the lexer are not cleaned up.
+TEST(SQLParserTokenizeLeakRegressionTest) {
+  test_tokens("'string_1' 'string_2' 'string_3';", {SQL_STRING, SQL_STRING, SQL_STRING, ';'});
+  test_tokens("ident_1 ident_2;", {SQL_IDENTIFIER, SQL_IDENTIFIER, ';'});
+  test_tokens("1.5 2e-2 .5;", {SQL_FLOATVAL, SQL_FLOATVAL, SQL_FLOATVAL, ';'});
+  test_tokens("9223372036854775808 9223372036854775809;", {SQL_BIGINTVAL, SQL_BIGINTVAL, ';'});
+}
+
+// H11
 TEST(SQLParserLexerErrorTest) {
   const std::vector<std::string> invalid_queries = {
       "SELECT 1 @ 2",

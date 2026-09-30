@@ -107,6 +107,7 @@ TEST(SelectUnaryMinusTest) {
   ASSERT_STREQ(stmt->selectList->at(7)->expr2->expr->name, "5.2");
 }
 
+// H07, H08
 TEST(SelectFloatLiteralTextTest) {
   TEST_PARSE_SINGLE_SQL("SELECT 0.12345678901234567890123456789, 1e-20, .5, 5.", kStmtSelect, SelectStatement,
                         result, stmt);
@@ -116,6 +117,20 @@ TEST(SelectFloatLiteralTextTest) {
   ASSERT_STREQ(stmt->selectList->at(1)->name, "1e-20");
   ASSERT_STREQ(stmt->selectList->at(2)->name, ".5");
   ASSERT_STREQ(stmt->selectList->at(3)->name, "5.");
+}
+
+// H08 (adapted from hyrise/sql-parser#234)
+TEST(SelectFloatExponentTest) {
+  TEST_PARSE_SINGLE_SQL("SELECT * FROM t WHERE duration < 2e-2", kStmtSelect, SelectStatement, result, stmt);
+
+  Expr* expr = stmt->whereClause;
+  ASSERT_NOTNULL(expr);
+  ASSERT(expr->isType(kExprOperator));
+  ASSERT_EQ(expr->opType, kOpLess);
+  ASSERT(expr->expr->isType(kExprColumnRef));
+  ASSERT_STREQ(expr->expr->name, "duration");
+  ASSERT(expr->expr2->isType(kExprLiteralFloatString));
+  ASSERT_STREQ(expr->expr2->name, "2e-2");
 }
 
 // Q02
@@ -146,7 +161,7 @@ TEST(SelectSingleQuotedBackslashTest) {
   ASSERT_STREQ(stmt->selectList->at(6)->name, R"(a\%)");
 }
 
-// Q02: a backslash before a quote must not end the string, or the parser and MySQL disagree on the query structure.
+// Q02
 TEST(SelectSingleQuotedBackslashBoundaryTest) {
   TEST_PARSE_SINGLE_SQL(R"(SELECT * FROM t WHERE x = 'a\' AND y = ' OR 1=1 -- ')", kStmtSelect, SelectStatement,
                         result, stmt);
@@ -160,7 +175,7 @@ TEST(SelectSingleQuotedBackslashBoundaryTest) {
   ASSERT_EQ(where->expr2->opType, kOpEquals);
 }
 
-// Q02: a backslash followed by a line break is kept as a pair like any other backslash escape.
+// Q02
 TEST(SelectQuotedBackslashNewlineTest) {
   TEST_PARSE_SINGLE_SQL("SELECT \"a\\\nb\", 'a\\\nb'", kStmtSelect, SelectStatement, result, stmt);
 
@@ -687,6 +702,7 @@ TEST(Operators) {
   ASSERT_EQ(stmt->whereClause->expr2->isBoolLiteral, true);
 }
 
+// Q07, Q08
 TEST(JoinTypes) {
   SelectStatement* stmt;
   SQLParserResult result;
@@ -1393,6 +1409,154 @@ TEST(FunctionSchema) {
   ASSERT_STREQ(stmt->selectList->at(0)->name, "isarray");
   ASSERT_EQ(stmt->selectList->at(0)->exprList->size(), 1);
   ASSERT_STREQ(stmt->selectList->at(0)->exprList->at(0)->name, "[1, 2, 3]");
+}
+
+
+// H01, H02, H06, Q01, Q09
+TEST(SelectIdentifierAndLiteralFormsTest) {
+  TEST_PARSE_SINGLE_SQL(
+      "SELECT db.tbl.col, _foo, `my col`, offset, 9223372036854775808, -9223372036854775809 "
+      "FROM `my db`.`my table` AS _t WHERE offset > 1 LIMIT 1 OFFSET 2;",
+      kStmtSelect, SelectStatement, result, stmt);
+
+  ASSERT_EQ(stmt->selectList->size(), 6);
+  const Expr* qualified = stmt->selectList->at(0);
+  ASSERT(qualified->isType(kExprColumnRef));
+  ASSERT_STREQ(qualified->schema, "db");
+  ASSERT_STREQ(qualified->table, "tbl");
+  ASSERT_STREQ(qualified->name, "col");
+  ASSERT_STREQ(stmt->selectList->at(1)->name, "_foo");
+  ASSERT_STREQ(stmt->selectList->at(2)->name, "my col");
+  ASSERT(stmt->selectList->at(3)->isType(kExprColumnRef));
+  ASSERT_STREQ(stmt->selectList->at(3)->name, "offset");
+  ASSERT(stmt->selectList->at(4)->isType(kExprLiteralIntString));
+  ASSERT_STREQ(stmt->selectList->at(4)->name, "9223372036854775808");
+  ASSERT_EQ(stmt->selectList->at(5)->opType, kOpUnaryMinus);
+  ASSERT(stmt->selectList->at(5)->expr->isType(kExprLiteralIntString));
+  ASSERT_STREQ(stmt->selectList->at(5)->expr->name, "9223372036854775809");
+
+  ASSERT_STREQ(stmt->fromTable->schema, "my db");
+  ASSERT_STREQ(stmt->fromTable->name, "my table");
+  ASSERT_STREQ(stmt->fromTable->alias->name, "_t");
+
+  // Qserv compat (Q09): OFFSET still works as a keyword after being used as a column name.
+  ASSERT_EQ(stmt->whereClause->opType, kOpGreater);
+  ASSERT_STREQ(stmt->whereClause->expr->name, "offset");
+  ASSERT_EQ(stmt->limit->limit->ival, 1); ASSERT_EQ(stmt->limit->offset->ival, 2);
+}
+
+// Q03, Q04, Q05, Q06, H13
+TEST(SelectMySqlOperatorPrecedenceTest) {
+  TEST_PARSE_SINGLE_SQL(
+      "SELECT 1 | 2 & 3 << 4 + 5 * 6 ^ 7, 8 MOD 3 DIV 2, 9 >> 1, 6 ^ 7 * 5, -1 ^ 2, -a * b FROM t "
+      "WHERE a <=> b || c = 1 && d = 2;",
+      kStmtSelect, SelectStatement, result, stmt);
+
+  // Qserv compat: MySQL precedence, lowest to highest: | & (<< >>) (+ -) (* / DIV % MOD) ^ (unary -)
+  const Expr* bitOr = stmt->selectList->at(0);
+  ASSERT_EQ(bitOr->opType, kOpBitOr);
+  ASSERT_EQ(bitOr->expr->ival, 1);
+  const Expr* bitAnd = bitOr->expr2;
+  ASSERT_EQ(bitAnd->opType, kOpBitAnd);
+  ASSERT_EQ(bitAnd->expr->ival, 2);
+  const Expr* shift = bitAnd->expr2;
+  ASSERT_EQ(shift->opType, kOpBitShiftLeft);
+  ASSERT_EQ(shift->expr->ival, 3);
+  const Expr* plus = shift->expr2;
+  ASSERT_EQ(plus->opType, kOpPlus);
+  ASSERT_EQ(plus->expr->ival, 4);
+  const Expr* times = plus->expr2;
+  ASSERT_EQ(times->opType, kOpAsterisk);
+  ASSERT_EQ(times->expr->ival, 5);
+  const Expr* bitXor = times->expr2;
+  ASSERT_EQ(bitXor->opType, kOpBitXor);
+  ASSERT_EQ(bitXor->expr->ival, 6);
+  ASSERT_EQ(bitXor->expr2->ival, 7);
+
+  // MOD and DIV precendence is same as * and /
+  const Expr* div = stmt->selectList->at(1);
+  ASSERT_EQ(div->opType, kOpDiv);
+  ASSERT_EQ(div->expr->opType, kOpMod);
+  ASSERT_EQ(div->expr2->ival, 2);
+
+  ASSERT_EQ(stmt->selectList->at(2)->opType, kOpBitShiftRight);
+
+  const Expr* leftXor = stmt->selectList->at(3);
+  ASSERT_EQ(leftXor->opType, kOpAsterisk);
+  ASSERT_EQ(leftXor->expr->opType, kOpBitXor);
+  ASSERT_EQ(leftXor->expr2->ival, 5);
+
+  // H13
+  const Expr* negXor = stmt->selectList->at(4);
+  ASSERT_EQ(negXor->opType, kOpBitXor);
+  ASSERT_EQ(negXor->expr->opType, kOpUnaryMinus);
+  ASSERT_EQ(negXor->expr->expr->ival, 1);
+  ASSERT_EQ(negXor->expr2->ival, 2);
+  const Expr* negTimes = stmt->selectList->at(5);
+  ASSERT_EQ(negTimes->opType, kOpAsterisk);
+  ASSERT_EQ(negTimes->expr->opType, kOpUnaryMinus);
+  ASSERT_STREQ(negTimes->expr2->name, "b");
+
+  // || and && are logical OR/AND, <=> is an equality comparison.
+  const Expr* where = stmt->whereClause;
+  ASSERT_EQ(where->opType, kOpOr);
+  ASSERT_EQ(where->expr->opType, kOpNullSafeEquals);
+  ASSERT_STREQ(where->expr->expr->name, "a");
+  ASSERT_STREQ(where->expr->expr2->name, "b");
+  ASSERT_EQ(where->expr2->opType, kOpAnd);
+  ASSERT_EQ(where->expr2->expr->opType, kOpEquals);
+  ASSERT_EQ(where->expr2->expr2->opType, kOpEquals);
+}
+
+// H04, H09
+TEST(SelectHavingWithoutGroupByTest) {
+  TEST_PARSE_SINGLE_SQL("SELECT a FROM t HAVING a NOT BETWEEN 1 AND 2;", kStmtSelect, SelectStatement, result, stmt);
+
+  ASSERT_NULL(stmt->groupBy);
+  ASSERT_NOTNULL(stmt->having);
+  ASSERT_EQ(stmt->having->opType, kOpNot);
+  const Expr* between = stmt->having->expr;
+  ASSERT_EQ(between->opType, kOpBetween);
+  ASSERT_STREQ(between->expr->name, "a");
+  ASSERT_EQ(between->exprList->at(0)->ival, 1);
+  ASSERT_EQ(between->exprList->at(1)->ival, 2);
+}
+
+// H03, H05, Q08
+TEST(NaturalAndConditionlessJoinTest) {
+  TEST_PARSE_SQL_QUERY(
+      "SELECT * FROM a NATURAL LEFT JOIN b NATURAL RIGHT OUTER JOIN c NATURAL FULL JOIN d;; "
+      "SELECT * FROM a JOIN b INNER JOIN c WHERE a.x = b.x;;;",
+      result, 2);
+
+  // NATURAL joins
+  TEST_CAST_STMT(result, 0, kStmtSelect, SelectStatement, natural);
+  const JoinDefinition* full = natural->fromTable->join;
+  ASSERT_EQ(full->type, kJoinFull);
+  ASSERT(full->natural);
+  ASSERT_NULL(full->condition);
+  ASSERT_STREQ(full->right->name, "d");
+  const JoinDefinition* right = full->left->join;
+  ASSERT_EQ(right->type, kJoinRight);
+  ASSERT(right->natural);
+  ASSERT_STREQ(right->right->name, "c");
+  const JoinDefinition* left = right->left->join;
+  ASSERT_EQ(left->type, kJoinLeft);
+  ASSERT(left->natural);
+  ASSERT_STREQ(left->left->name, "a");
+  ASSERT_STREQ(left->right->name, "b");
+
+  // JOIN and INNER JOIN without ON/USING
+  TEST_CAST_STMT(result, 1, kStmtSelect, SelectStatement, conditionless);
+  const JoinDefinition* inner = conditionless->fromTable->join;
+  ASSERT_EQ(inner->type, kJoinInner);
+  ASSERT_FALSE(inner->natural);
+  ASSERT_NULL(inner->condition);
+  ASSERT_STREQ(inner->right->name, "c");
+  const JoinDefinition* plain = inner->left->join;
+  ASSERT_EQ(plain->type, kJoinInner);
+  ASSERT_NULL(plain->condition);
+  ASSERT_EQ(conditionless->whereClause->opType, kOpEquals);
 }
 
 }  // namespace hsql

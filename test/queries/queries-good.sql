@@ -120,6 +120,6 @@ SELECT test1, rank() OVER (ORDER BY test2 DESC, test3 ASC) rnk FROM test;
 SELECT rank() OVER () FROM test;
 SELECT rank() OVER (PARTITION BY test1) FROM test;
 SELECT rank() OVER (PARTITION BY test1 ORDER BY test2) FROM test;
-# Out-of-int64_t-range integer literals are kept as strings (kExprLiteralIntString).
+# H06: Out-of-int64_t-range integer literals are kept as strings (kExprLiteralIntString).
 SELECT -9223372036854775809;
 SELECT 9223372036854775808;
