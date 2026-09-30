@@ -22,7 +22,8 @@ The following could likely be upstreamed as they aren't specific to any particul
 * **H09**: `NOT BETWEEN` expressions are supported.
 * **H10**: Fixed memory leak in `SQLParser::tokenize()`. Based on upstream issue [hyrise/sql-parser#261](https://github.com/hyrise/sql-parser/issues/261)
 * **H11**: Lexer errors, including unknown characters and unterminated quoted strings, invalidate parsing and make `SQLParser::tokenize()` return `false`.
-* **H12**: A `NOT` prefix negates the full predicate. `NOT x IN (1, 2)` now parses as `NOT (x IN (1, 2))` rather than `(NOT x) IN (1, 2)`
+* **H12**: A `NOT` prefix negates the full predicate. `NOT x IN (1, 2)` parses as `NOT (x IN (1, 2))` rather than `(NOT x) IN (1, 2)`
+* **H13**: Unary minus precedence: `-a * b` parses as `(-a) * b` rather than `-(a * b)`
 
 ### Qserv / MySQL dialect-specific changes
 

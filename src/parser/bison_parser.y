@@ -329,11 +329,11 @@
 %nonassoc ISNULL
 %nonassoc IS        /* sets precedence for IS NULL, etc */
 %left     '|'
-%left     '^'
 %left     '&'
 %left     BITSHIFTLEFT BITSHIFTRIGHT
 %left     '+' '-'
 %left     '*' '/' '%' MOD DIV
+%left     '^'       /* Qserv compat: we are using ^ for XOR, not exponentiation, so precedence differs from upstream */
 %left     CONCAT
 
 /* Unary Operators */
@@ -1140,7 +1140,7 @@ operand : '(' expr ')' { $$ = $2; }
 
 scalar_expr : column_name | literal;
 
-unary_expr : '-' operand { $$ = Expr::makeOpUnary(kOpUnaryMinus, $2); }
+unary_expr : '-' operand %prec UMINUS { $$ = Expr::makeOpUnary(kOpUnaryMinus, $2); }
 | operand ISNULL { $$ = Expr::makeOpUnary(kOpIsNull, $1); }
 | operand IS NULL { $$ = Expr::makeOpUnary(kOpIsNull, $1); }
 | operand IS NOT NULL { $$ = Expr::makeOpUnary(kOpNot, Expr::makeOpUnary(kOpIsNull, $1)); };
